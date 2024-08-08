@@ -2,6 +2,8 @@
 [START]: #voice-recognition-v3-wip
 ##
 - https://github.com/frankvanhooft/ESP32-ElechouseVR3
+- https://blog.frankvh.com/2022/02/21/esp32-support-for-elechouse-voice-recognition-module-v3/
+- 
 
 ## Feature
 - Recognize maximum 7 voice commands at same time
