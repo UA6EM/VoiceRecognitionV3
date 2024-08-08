@@ -1,3 +1,5 @@
+// Edited by Frank Van Hooft 2022 specifically for ESP32 UART2
+
 /**
   ******************************************************************************
   * @file    VoiceRecognitionV2.h
@@ -34,9 +36,6 @@
 #endif
 
 #include "wiring_private.h"
-
-#include "SoftwareSerial.h"
-#include <avr/pgmspace.h>
 
 #define DEBUG
 
@@ -103,7 +102,7 @@
 /***************************************************************************/
 
 
-class VR : public SoftwareSerial{
+class VR {
 public:
 	VR(uint8_t receivePin, uint8_t transmitPin);
 	
@@ -149,6 +148,7 @@ public:
 		GROUP_ALL = 0xFF,
 	}group_t;
 	
+    void begin(unsigned long baud);
 	int setBaudRate(unsigned long br);
 	int setIOMode(io_mode_t mode);
 	int resetIO(uint8_t *ios=0, uint8_t len=1);
@@ -199,4 +199,3 @@ public:
 private:
 	static VR*  instance;
 };
-
