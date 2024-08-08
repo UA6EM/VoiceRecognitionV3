@@ -1,3 +1,5 @@
+// Edited by Frank Van Hooft 2022 specifically for ESP32 UART2
+
 /**
   ******************************************************************************
   * @file    VoiceRecognitionV2.cpp
@@ -28,6 +30,14 @@
   */
 #include "VoiceRecognitionV3.h"
 #include <string.h>
+#include <inttypes.h>
+
+// ESP32 UART2 connected to Elechouse V3 voice recognition module
+// Note that Elechouse module is 5V and ESP32 is 3V3, so make sure to use a 
+// resistor-divider when connecting Elechouse Tx pin to ESP32 Rx pin.
+#define RXD2 16
+#define TXD2 17
+#define TXDLY 2
 
 VR* VR::instance;
 
@@ -37,13 +47,13 @@ uint8_t hextab[17]="0123456789ABCDEF";
 
 /**
 	@brief VR class constructor.
-	@param receivePin --> software serial RX
-		   transmitPin --> software serial TX
+	@param receivePin --> software serial RX - IGNORED FOR ESP32
+		   transmitPin --> software serial TX - IGNORED FOR ESP32
 */
-VR::VR(uint8_t receivePin, uint8_t transmitPin) : SoftwareSerial(receivePin, transmitPin)
+VR::VR(uint8_t receivePin, uint8_t transmitPin)
 {
 	instance = this;
-	SoftwareSerial::begin(38400);
+
 }
 
 /**
@@ -73,6 +83,13 @@ int VR :: recognize(uint8_t *buf, int timeout)
 	
 	return 0;
 }
+
+
+void VR :: begin(unsigned long baud)
+{
+    Serial2.begin(baud, SERIAL_8N1, RXD2, TXD2);
+}
+
 
 /**
 	@brief train records, at least one.
@@ -391,11 +408,19 @@ int VR :: clear()
 	int len;
 	send_pkt(FRAME_CMD_CLEAR, 0, 0);
 	len = receive_pkt(vr_buf);
+    
 	if(len<=0){
-		return -1;
+		Serial.println("Clear returned nothing\r\n");
+        return -1;
 	}
 
 	if(vr_buf[2] != FRAME_CMD_CLEAR){
+        Serial.println("Clear returned ");
+        Serial.print(vr_buf[0], HEX);
+        Serial.print(vr_buf[1], HEX);
+        Serial.print(vr_buf[2], HEX);
+        Serial.print(vr_buf[3], HEX);
+        Serial.print("\r\n");
 		return -1;
 	}
 	//DBGLN("VR Module Cleared");
@@ -804,6 +829,8 @@ int VR :: checkSystemSettings(uint8_t* buf)
     @param br --> module baud rate.(0-9600 1-2400 2-4800 3-9600 4-19200 5-38400)
     @retval 0 --> success
             -1 --> failed
+            
+    This changes the baud rate of the module, but not of the ESP32 serial port!        
 */
 int VR :: setBaudRate(unsigned long br)
 {
@@ -1137,15 +1164,22 @@ int VR :: writehex(uint8_t *buf, uint8_t len)
 */
 void VR :: send_pkt(uint8_t cmd, uint8_t subcmd, uint8_t *buf, uint8_t len)
 {
-	while(available()){
-		read();// replace flush();
+	while(Serial2.available()){
+		Serial2.read();// replace flush();
+        delay(TXDLY);
 	}
-	write(FRAME_HEAD);
-	write(len+3);
-	write(cmd);
-	write(subcmd);
-	write(buf, len);
-	write(FRAME_END);
+	Serial2.write(FRAME_HEAD);
+    delay(TXDLY);
+	Serial2.write(len+3);
+    delay(TXDLY);
+	Serial2.write(cmd);
+    delay(TXDLY);
+	Serial2.write(subcmd);
+    delay(TXDLY);
+	Serial2.write(buf, len);
+    delay(TXDLY);
+	Serial2.write(FRAME_END);
+    delay(TXDLY);
 }
 
 /**
@@ -1156,14 +1190,18 @@ void VR :: send_pkt(uint8_t cmd, uint8_t subcmd, uint8_t *buf, uint8_t len)
 */
 void VR :: send_pkt(uint8_t cmd, uint8_t *buf, uint8_t len)
 {
-	while(available()){
-		read();// replace flush();
+	while(Serial2.available()){
+		Serial2.read();// replace flush();
+        delay(TXDLY);
 	}
-	write(FRAME_HEAD);
-	write(len+2);
-	write(cmd);
-	write(buf, len);
-	write(FRAME_END);
+	Serial2.write(FRAME_HEAD);
+    delay(TXDLY);
+	Serial2.write(len+2);
+    delay(TXDLY);
+	Serial2.write(cmd);
+    delay(TXDLY);
+	Serial2.write(FRAME_END);
+    delay(TXDLY);
 }
 
 /**
@@ -1173,25 +1211,31 @@ void VR :: send_pkt(uint8_t cmd, uint8_t *buf, uint8_t len)
 */
 void VR :: send_pkt(uint8_t *buf, uint8_t len)
 {
-	while(available()){
-		read();// replace flush();
+	while(Serial2.available()){
+		Serial2.read();// replace flush();
+        delay(TXDLY);
 	}
-	write(FRAME_HEAD);
-	write(len+1);
-	write(buf, len);
-	write(FRAME_END);
+	Serial2.write(FRAME_HEAD);
+    delay(TXDLY);
+	Serial2.write(len+1);
+    delay(TXDLY);
+	Serial2.write(buf, len);
+    delay(TXDLY);
+	Serial2.write(FRAME_END);
+    delay(TXDLY);
 }
 
 /**
     @brief receive a valid data packet in Voice Recognition module protocol format.
     @param buf --> return value buffer.
-           timeout --> time of reveiving
-    @retval '>0' --> success, packet lenght(length of all data in buf)
+           timeout --> time of receiving (ms)
+    @retval '>0' --> success, packet length(length of all data in buf)
             '<0' --> failed
 */
 int VR :: receive_pkt(uint8_t *buf, uint16_t timeout)
 {
 	int ret;
+    
 	ret = receive(buf, 2, timeout);
 	if(ret != 2){
 		return -1;
@@ -1227,16 +1271,18 @@ int VR::receive(uint8_t *buf, int len, uint16_t timeout)
   
   while (read_bytes < len) {
     start_millis = millis();
+    
     do {
-      ret = read();
+      ret = Serial2.read();
       if (ret >= 0) {
         break;
      }
-    } while( (millis()- start_millis ) < timeout);
+    } while( (millis() - start_millis ) < timeout);
     
     if (ret < 0) {
       return read_bytes;
     }
+    
     buf[read_bytes] = (char)ret;
     read_bytes++;
   }
